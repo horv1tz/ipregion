@@ -119,7 +119,7 @@ log_message() {
 }
 
 is_installed() {
-  command -v "$1" > /dev/null 2>&1
+  command -v "$1" >/dev/null 2>&1
 }
 
 install_dependencies() {
@@ -152,7 +152,7 @@ install_dependencies() {
         exit 0
         ;;
     esac
-  done < /dev/tty
+  done </dev/tty
 
   # Check if the script is running in Termux
   if [ -d /data/data/com.termux ]; then
@@ -195,7 +195,7 @@ get_random_identity_service() {
 }
 
 get_ipv4() {
-  external_ip=$(curl -4 -qs "$(get_random_identity_service)" 2> /dev/null)
+  external_ip=$(curl -4 -qs "$(get_random_identity_service)" 2>/dev/null)
   hidden_ip="$(printf "%s" "$external_ip" | cut -d'.' -f1-2).***.***"
 }
 
@@ -207,7 +207,7 @@ get_ipv6() {
 mask_ipv6() {
   local ipv6="$1"
 
-  IFS=":" read -ra segments <<< "$ipv6"
+  IFS=":" read -ra segments <<<"$ipv6"
   for i in "${!segments[@]}"; do
     if ((i > 1 && i < ${#segments[@]} - 2)); then
       segments[i]="****"
@@ -250,20 +250,30 @@ check_service() {
   fi
 }
 
+get_asn() {
+  local ip="$1"
+  asn_response=$(curl -s "https://ipinfo.io/widget/demo/$ip" | jq -r ".data.asn")
+  asn=$(jq -r '.asn' <<<"$asn_response")
+  asn_owner=$(jq -r '.name' <<<"$asn_response")
+}
+
 print_results() {
+  # TODO: Make ASN check for both ipv4 and ipv6
+  get_asn "$external_ip"
 
   if
     IPV6_ADDR=$(ip -o -6 addr show scope global | awk '{split($4, a, "/"); print a[1]; exit}')
     [ -n "$IPV6_ADDR" ]
   then
-    printf "\n\n%bResults for IP %b%s %s %s%b\n\n" \
-      "${COLOR_BOLD_GREEN}" "${COLOR_BOLD_CYAN}" "$hidden_ip" "and" "$hidden_ipv6" "${COLOR_RESET}"
+    printf "\n\n%bResults for IP %b%s %s %s%b\n\n" "${COLOR_BOLD_GREEN}" "${COLOR_BOLD_CYAN}" "$hidden_ip" "and" "$hidden_ipv6" "${COLOR_RESET}"
+    printf "%bASN:%b %s, %s%b\n\n" "$COLOR_BOLD_GREEN" "$COLOR_BOLD_CYAN" "$asn" "$asn_owner" "$COLOR_RESET"
     printf "                        IPv4      IPv6\n\n"
   else
-    printf "\n\n%bResults for IP %b%s%b\n\n" \
-      "${COLOR_BOLD_GREEN}" "${COLOR_BOLD_CYAN}" "$hidden_ip" "${COLOR_RESET}"
+    printf "\n\n%bResults for IP %b%s%b\n\n" "${COLOR_BOLD_GREEN}" "${COLOR_BOLD_CYAN}" "$hidden_ip" "${COLOR_RESET}"
+    printf "%bASN:%b %s, %s%b\n\n" "$COLOR_BOLD_GREEN" "$COLOR_BOLD_CYAN" "$asn" "$asn_owner" "$COLOR_RESET"
     printf "                        IPv4\n\n"
   fi
+
   for result in "${results[@]}"; do
     printf "%b\n" "$result"
   done
@@ -271,7 +281,7 @@ print_results() {
 }
 
 ripe_rdap_lookup() {
-  result=$(timeout 3 curl -4 -s https://rdap.db.ripe.net/ip/"$external_ip" | jq -r ".country" 2> /dev/null)
+  result=$(timeout 3 curl -4 -s https://rdap.db.ripe.net/ip/"$external_ip" | jq -r ".country" 2>/dev/null)
   if [ $? -eq 124 ]; then
     echo ""
   elif [ "$result" == "null" ]; then
@@ -284,7 +294,7 @@ ripe_rdap_lookup() {
 }
 
 ripe_rdap_lookup_v6() {
-  result=$(timeout 3 curl -4 -s https://rdap.db.ripe.net/ip/"$external_ipv6" | jq -r ".country" 2> /dev/null)
+  result=$(timeout 3 curl -4 -s https://rdap.db.ripe.net/ip/"$external_ipv6" | jq -r ".country" 2>/dev/null)
   if [ $? -eq 124 ]; then
     echo ""
   elif [ "$result" == "null" ]; then
@@ -297,7 +307,7 @@ ripe_rdap_lookup_v6() {
 }
 
 ipinfo_io_lookup() {
-  result=$(timeout 3 curl -4 -s https://ipinfo.io/widget/demo/"$external_ip" | jq -r ".data.country" 2> /dev/null)
+  result=$(timeout 3 curl -4 -s https://ipinfo.io/widget/demo/"$external_ip" | jq -r ".data.country" 2>/dev/null)
   if [ $? -eq 124 ]; then
     echo ""
   elif [ "$result" == "null" ]; then
@@ -311,7 +321,7 @@ ipinfo_io_lookup() {
 
 ipinfo_io_lookup_v6() {
   sleep 2
-  result=$(timeout 3 curl -4 -s https://ipinfo.io/widget/demo/""$external_ipv6"" | jq -r ".data.country" 2> /dev/null)
+  result=$(timeout 3 curl -4 -s https://ipinfo.io/widget/demo/""$external_ipv6"" | jq -r ".data.country" 2>/dev/null)
   if [ $? -eq 124 ]; then
     echo ""
   elif [ "$result" == "null" ]; then
@@ -326,7 +336,7 @@ ipinfo_io_lookup_v6() {
 ipregistry_co_lookup() {
   # TODO: Add automatic API key parsing
   api_key="sb69ksjcajfs4c"
-  result=$(timeout 3 curl -4 -s "https://api.ipregistry.co/$external_ip?hostname=true&key=$api_key" -H "Origin: https://ipregistry.co" | jq -r ".location.country.code" 2> /dev/null)
+  result=$(timeout 3 curl -4 -s "https://api.ipregistry.co/$external_ip?hostname=true&key=$api_key" -H "Origin: https://ipregistry.co" | jq -r ".location.country.code" 2>/dev/null)
   if [ $? -eq 124 ]; then
     echo ""
   elif [ "$result" == "null" ]; then
@@ -341,7 +351,7 @@ ipregistry_co_lookup() {
 ipregistry_co_lookup_v6() {
   # TODO: Add automatic API key parsing
   api_key="sb69ksjcajfs4c"
-  result=$(timeout 3 curl -4 -s "https://api.ipregistry.co/$external_ipv6?hostname=true&key=$api_key" -H "Origin: https://ipregistry.co" | jq -r ".location.country.code" 2> /dev/null)
+  result=$(timeout 3 curl -4 -s "https://api.ipregistry.co/$external_ipv6?hostname=true&key=$api_key" -H "Origin: https://ipregistry.co" | jq -r ".location.country.code" 2>/dev/null)
   if [ $? -eq 124 ]; then
     echo ""
   elif [ "$result" == "null" ]; then
@@ -534,7 +544,7 @@ apple_lookup_v6() {
 }
 
 ipapi_com_lookup() {
-  result=$(timeout 3 curl -4 -s "https://ipapi.com/ip_api.php?ip=$external_ip" | jq -r ".country_code" 2> /dev/null)
+  result=$(timeout 3 curl -4 -s "https://ipapi.com/ip_api.php?ip=$external_ip" | jq -r ".country_code" 2>/dev/null)
   if [ $? -eq 124 ]; then
     echo ""
   elif [ "$result" == "null" ]; then
@@ -547,7 +557,7 @@ ipapi_com_lookup() {
 }
 
 ipapi_com_lookup_v6() {
-  result=$(timeout 3 curl -4 -s "https://ipapi.com/ip_api.php?ip=$external_ipv6" | jq -r ".country_code" 2> /dev/null)
+  result=$(timeout 3 curl -4 -s "https://ipapi.com/ip_api.php?ip=$external_ipv6" | jq -r ".country_code" 2>/dev/null)
   if [ $? -eq 124 ]; then
     echo ""
   elif [ "$result" == "null" ]; then
@@ -560,7 +570,7 @@ ipapi_com_lookup_v6() {
 }
 
 db_ip_com_lookup() {
-  result=$(timeout 3 curl -4 -s "https://db-ip.com/demo/home.php?s=$external_ip" | jq -r ".demoInfo.countryCode" 2> /dev/null)
+  result=$(timeout 3 curl -4 -s "https://db-ip.com/demo/home.php?s=$external_ip" | jq -r ".demoInfo.countryCode" 2>/dev/null)
   if [ $? -eq 124 ]; then
     echo ""
   elif [ "$result" == "null" ]; then
@@ -573,7 +583,7 @@ db_ip_com_lookup() {
 }
 
 db_ip_com_lookup_v6() {
-  result=$(timeout 3 curl -4 -s "https://db-ip.com/demo/home.php?s=$external_ipv6" | jq -r ".demoInfo.countryCode" 2> /dev/null)
+  result=$(timeout 3 curl -4 -s "https://db-ip.com/demo/home.php?s=$external_ipv6" | jq -r ".demoInfo.countryCode" 2>/dev/null)
   if [ $? -eq 124 ]; then
     echo ""
   elif [ "$result" == "null" ]; then
@@ -588,7 +598,7 @@ db_ip_com_lookup_v6() {
 ipdata_co_lookup() {
   html=$(timeout 3 curl -4 -s "https://ipdata.co")
   api_key=$(printf "%s" "$html" | grep -oP '(?<=api-key=)[a-zA-Z0-9]+')
-  result=$(timeout 3 curl -4 -s -H "Referer: https://ipdata.co" "https://api.ipdata.co/?api-key=$api_key" | jq -r ".country_code" 2> /dev/null)
+  result=$(timeout 3 curl -4 -s -H "Referer: https://ipdata.co" "https://api.ipdata.co/?api-key=$api_key" | jq -r ".country_code" 2>/dev/null)
   if [ $? -eq 124 ]; then
     echo ""
   elif [ "$result" == "null" ]; then
@@ -603,7 +613,7 @@ ipdata_co_lookup() {
 ipdata_co_lookup_v6() {
   html=$(timeout 3 curl -6 -s "https://ipdata.co")
   api_key=$(printf "%s" "$html" | grep -oP '(?<=api-key=)[a-zA-Z0-9]+')
-  result=$(timeout 3 curl -6 -s -H "Referer: https://ipdata.co" "https://api.ipdata.co/?api-key=$api_key" | jq -r ".country_code" 2> /dev/null)
+  result=$(timeout 3 curl -6 -s -H "Referer: https://ipdata.co" "https://api.ipdata.co/?api-key=$api_key" | jq -r ".country_code" 2>/dev/null)
   if [ $? -eq 124 ]; then
     echo ""
   elif [ "$result" == "null" ]; then
@@ -616,7 +626,7 @@ ipdata_co_lookup_v6() {
 }
 
 ipwhois_io_lookup() {
-  result=$(timeout 3 curl -4 -s -H "Referer: https://ipwhois.io" "https://ipwhois.io/widget?ip=$external_ip&lang=en" | jq -r ".country_code" 2> /dev/null)
+  result=$(timeout 3 curl -4 -s -H "Referer: https://ipwhois.io" "https://ipwhois.io/widget?ip=$external_ip&lang=en" | jq -r ".country_code" 2>/dev/null)
   if [ $? -eq 124 ]; then
     echo ""
   elif [ "$result" == "null" ]; then
@@ -629,7 +639,7 @@ ipwhois_io_lookup() {
 }
 
 ipwhois_io_lookup_v6() {
-  result=$(timeout 3 curl -4 -s -H "Referer: https://ipwhois.io" "https://ipwhois.io/widget?ip=$external_ipv6&lang=en" | jq -r ".country_code" 2> /dev/null)
+  result=$(timeout 3 curl -4 -s -H "Referer: https://ipwhois.io" "https://ipwhois.io/widget?ip=$external_ipv6&lang=en" | jq -r ".country_code" 2>/dev/null)
   if [ $? -eq 124 ]; then
     echo ""
   elif [ "$result" == "null" ]; then
@@ -694,7 +704,7 @@ whoer_net_lookup_v6() {
 }
 
 ipquery_io_lookup() {
-  result=$(timeout 3 curl -4 -s "https://api.ipquery.io/$external_ip" | jq -r ".location.country_code" 2> /dev/null)
+  result=$(timeout 3 curl -4 -s "https://api.ipquery.io/$external_ip" | jq -r ".location.country_code" 2>/dev/null)
   if [ $? -eq 124 ]; then
     echo ""
   elif [ "$result" == "null" ]; then
@@ -707,7 +717,7 @@ ipquery_io_lookup() {
 }
 
 ipquery_io_lookup_v6() {
-  result=$(timeout 3 curl -4 -s "https://api.ipquery.io/$external_ipv6" | jq -r ".location.country_code" 2> /dev/null)
+  result=$(timeout 3 curl -4 -s "https://api.ipquery.io/$external_ipv6" | jq -r ".location.country_code" 2>/dev/null)
   if [ $? -eq 124 ]; then
     echo ""
   elif [ "$result" == "null" ]; then
@@ -720,7 +730,7 @@ ipquery_io_lookup_v6() {
 }
 
 country_is_lookup() {
-  result=$(timeout 3 curl -4 -s "https://api.country.is/$external_ip" | jq -r ".country" 2> /dev/null)
+  result=$(timeout 3 curl -4 -s "https://api.country.is/$external_ip" | jq -r ".country" 2>/dev/null)
   if [ $? -eq 124 ]; then
     echo ""
   elif [ "$result" == "null" ]; then
@@ -733,7 +743,7 @@ country_is_lookup() {
 }
 
 country_is_lookup_v6() {
-  result=$(timeout 3 curl -4 -s "https://api.country.is/$external_ipv6" | jq -r ".country" 2> /dev/null)
+  result=$(timeout 3 curl -4 -s "https://api.country.is/$external_ipv6" | jq -r ".country" 2>/dev/null)
   if [ $? -eq 124 ]; then
     echo ""
   elif [ "$result" == "null" ]; then
@@ -746,7 +756,7 @@ country_is_lookup_v6() {
 }
 
 cleantalk_org_lookup() {
-  result=$(timeout 3 curl -4 -s "https://api.cleantalk.org/?method_name=ip_info&ip=$external_ip" | jq -r --arg ip "$external_ip" '.data[$ip | tostring].country_code' 2> /dev/null)
+  result=$(timeout 3 curl -4 -s "https://api.cleantalk.org/?method_name=ip_info&ip=$external_ip" | jq -r --arg ip "$external_ip" '.data[$ip | tostring].country_code' 2>/dev/null)
   if [ $? -eq 124 ]; then
     echo ""
   elif [ "$result" == "null" ]; then
@@ -759,7 +769,7 @@ cleantalk_org_lookup() {
 }
 
 cleantalk_org_lookup_v6() {
-  result=$(timeout 3 curl -4 -s "https://api.cleantalk.org/?method_name=ip_info&ip=$external_ipv6" | jq -r --arg ip "$external_ip" '.data[$ip | tostring].country_code' 2> /dev/null)
+  result=$(timeout 3 curl -4 -s "https://api.cleantalk.org/?method_name=ip_info&ip=$external_ipv6" | jq -r --arg ip "$external_ip" '.data[$ip | tostring].country_code' 2>/dev/null)
   if [ $? -eq 124 ]; then
     echo ""
   elif [ "$result" == "null" ]; then
@@ -772,7 +782,7 @@ cleantalk_org_lookup_v6() {
 }
 
 ip_api_com_lookup() {
-  result=$(timeout 3 curl -4 -s "https://demo.ip-api.com/json/$external_ip" -H "Origin: https://ip-api.com" | jq -r ".countryCode" 2> /dev/null)
+  result=$(timeout 3 curl -4 -s "https://demo.ip-api.com/json/$external_ip" -H "Origin: https://ip-api.com" | jq -r ".countryCode" 2>/dev/null)
   if [ $? -eq 124 ]; then
     echo ""
   elif [ "$result" == "null" ]; then
@@ -785,7 +795,7 @@ ip_api_com_lookup() {
 }
 
 ip_api_com_lookup_v6() {
-  result=$(timeout 3 curl -4 -s "https://demo.ip-api.com/json/$external_ipv6" -H "Origin: https://ip-api.com" | jq -r ".countryCode" 2> /dev/null)
+  result=$(timeout 3 curl -4 -s "https://demo.ip-api.com/json/$external_ipv6" -H "Origin: https://ip-api.com" | jq -r ".countryCode" 2>/dev/null)
   if [ $? -eq 124 ]; then
     echo ""
   elif [ "$result" == "null" ]; then
@@ -798,7 +808,7 @@ ip_api_com_lookup_v6() {
 }
 
 ipgeolocation_io_lookup() {
-  result=$(timeout 3 curl -4 -s "https://api.ipgeolocation.io/ipgeo?ip=$external_ip" -H "Referer: https://ipgeolocation.io" | jq -r ".country_code2" 2> /dev/null)
+  result=$(timeout 3 curl -4 -s "https://api.ipgeolocation.io/ipgeo?ip=$external_ip" -H "Referer: https://ipgeolocation.io" | jq -r ".country_code2" 2>/dev/null)
   if [ $? -eq 124 ]; then
     echo ""
   elif [ "$result" == "null" ]; then
@@ -811,7 +821,7 @@ ipgeolocation_io_lookup() {
 }
 
 ipapi_co_lookup() {
-  result=$(timeout 3 curl -4 -s "https://ipapi.co/$external_ip/json" | jq -r ".country" 2> /dev/null)
+  result=$(timeout 3 curl -4 -s "https://ipapi.co/$external_ip/json" | jq -r ".country" 2>/dev/null)
   if [ $? -eq 124 ]; then
     echo ""
   elif [ "$result" == "null" ]; then
@@ -824,7 +834,7 @@ ipapi_co_lookup() {
 }
 
 ipapi_co_lookup_v6() {
-  result=$(timeout 3 curl -4 -s "https://ipapi.co/$external_ipv6/json" | jq -r ".country" 2> /dev/null)
+  result=$(timeout 3 curl -4 -s "https://ipapi.co/$external_ipv6/json" | jq -r ".country" 2>/dev/null)
   if [ $? -eq 124 ]; then
     echo ""
   elif [ "$result" == "null" ]; then
@@ -853,7 +863,7 @@ findip_net_lookup() {
 }
 
 geojs_io_lookup() {
-  result=$(timeout 3 curl -4 -s "https://get.geojs.io/v1/ip/country.json?ip=$external_ip" | jq -r ".[0].country" 2> /dev/null)
+  result=$(timeout 3 curl -4 -s "https://get.geojs.io/v1/ip/country.json?ip=$external_ip" | jq -r ".[0].country" 2>/dev/null)
   if [ $? -eq 124 ]; then
     echo ""
   elif [ "$result" == "null" ]; then
@@ -866,7 +876,7 @@ geojs_io_lookup() {
 }
 
 geojs_io_lookup_v6() {
-  result=$(timeout 3 curl -4 -s "https://get.geojs.io/v1/ip/country.json?ip=$external_ipv6" | jq -r ".[0].country" 2> /dev/null)
+  result=$(timeout 3 curl -4 -s "https://get.geojs.io/v1/ip/country.json?ip=$external_ipv6" | jq -r ".[0].country" 2>/dev/null)
   if [ $? -eq 124 ]; then
     echo ""
   elif [ "$result" == "null" ]; then
@@ -879,7 +889,7 @@ geojs_io_lookup_v6() {
 }
 
 iplocation_com_lookup() {
-  result=$(timeout 3 curl -4 -s -X POST "https://iplocation.com" -A "$USER_AGENT" --form "ip=$external_ip" | jq -r ".country_code" 2> /dev/null)
+  result=$(timeout 3 curl -4 -s -X POST "https://iplocation.com" -A "$USER_AGENT" --form "ip=$external_ip" | jq -r ".country_code" 2>/dev/null)
   if [ $? -eq 124 ]; then
     echo ""
   elif [ "$result" == "null" ]; then
@@ -892,7 +902,7 @@ iplocation_com_lookup() {
 }
 
 iplocation_com_lookup_v6() {
-  result=$(timeout 3 curl -4 -s -X POST "https://iplocation.com" -A "$USER_AGENT" --form "ip=$external_ipv6" | jq -r ".country_code" 2> /dev/null)
+  result=$(timeout 3 curl -4 -s -X POST "https://iplocation.com" -A "$USER_AGENT" --form "ip=$external_ipv6" | jq -r ".country_code" 2>/dev/null)
   if [ $? -eq 124 ]; then
     echo ""
   elif [ "$result" == "null" ]; then
@@ -907,7 +917,7 @@ iplocation_com_lookup_v6() {
 geoapify_com_lookup() {
   # TODO: Add automatic API key parsing
   api_key="b8568cb9afc64fad861a69edbddb2658"
-  result=$(timeout 3 curl -4 -s "https://api.geoapify.com/v1/ipinfo?&ip=$external_ip&apiKey=$api_key" | jq -r ".country.iso_code" 2> /dev/null)
+  result=$(timeout 3 curl -4 -s "https://api.geoapify.com/v1/ipinfo?&ip=$external_ip&apiKey=$api_key" | jq -r ".country.iso_code" 2>/dev/null)
   if [ $? -eq 124 ]; then
     echo ""
   elif [ "$result" == "null" ]; then
@@ -922,7 +932,7 @@ geoapify_com_lookup() {
 geoapify_com_lookup_v6() {
   # TODO: Add automatic API key parsing
   api_key="b8568cb9afc64fad861a69edbddb2658"
-  result=$(timeout 3 curl -4 -s "https://api.geoapify.com/v1/ipinfo?&ip=$external_ipv6&apiKey=$api_key" | jq -r ".country.iso_code" 2> /dev/null)
+  result=$(timeout 3 curl -4 -s "https://api.geoapify.com/v1/ipinfo?&ip=$external_ipv6&apiKey=$api_key" | jq -r ".country.iso_code" 2>/dev/null)
   if [ $? -eq 124 ]; then
     echo ""
   elif [ "$result" == "null" ]; then
@@ -935,7 +945,7 @@ geoapify_com_lookup_v6() {
 }
 
 ipapi_is_lookup() {
-  result=$(timeout 3 curl -4 -s "https://api.ipapi.is/?q=$external_ip" | jq -r ".location.country_code" 2> /dev/null)
+  result=$(timeout 3 curl -4 -s "https://api.ipapi.is/?q=$external_ip" | jq -r ".location.country_code" 2>/dev/null)
   if [ $? -eq 124 ]; then
     echo ""
   elif [ "$result" == "null" ]; then
@@ -948,7 +958,7 @@ ipapi_is_lookup() {
 }
 
 ipapi_is_lookup_v6() {
-  result=$(timeout 3 curl -4 -s "https://api.ipapi.is/?q=$external_ipv6" | jq -r ".location.country_code" 2> /dev/null)
+  result=$(timeout 3 curl -4 -s "https://api.ipapi.is/?q=$external_ipv6" | jq -r ".location.country_code" 2>/dev/null)
   if [ $? -eq 124 ]; then
     echo ""
   elif [ "$result" == "null" ]; then
@@ -961,7 +971,7 @@ ipapi_is_lookup_v6() {
 }
 
 freeipapi_com_lookup() {
-  result=$(timeout 3 curl -4 -s "https://freeipapi.com/api/json/$external_ip" | jq -r ".countryCode" 2> /dev/null)
+  result=$(timeout 3 curl -4 -s "https://freeipapi.com/api/json/$external_ip" | jq -r ".countryCode" 2>/dev/null)
   if [ $? -eq 124 ]; then
     echo ""
   elif [ "$result" == "null" ]; then
@@ -974,7 +984,7 @@ freeipapi_com_lookup() {
 }
 
 freeipapi_com_lookup_v6() {
-  result=$(timeout 3 curl -4 -s "https://freeipapi.com/api/json/$external_ipv6" | jq -r ".countryCode" 2> /dev/null)
+  result=$(timeout 3 curl -4 -s "https://freeipapi.com/api/json/$external_ipv6" | jq -r ".countryCode" 2>/dev/null)
   if [ $? -eq 124 ]; then
     echo ""
   elif [ "$result" == "null" ]; then
@@ -987,7 +997,7 @@ freeipapi_com_lookup_v6() {
 }
 
 4_ipwho_de_lookup() {
-  result=$(timeout 3 curl -4 -s ipwho.de/json | jq -r '.country_code' 2> /dev/null)
+  result=$(timeout 3 curl -4 -s ipwho.de/json | jq -r '.country_code' 2>/dev/null)
   if [ $? -eq 124 ]; then
     echo ""
   elif [ "$result" == "null" ]; then
@@ -1000,7 +1010,7 @@ freeipapi_com_lookup_v6() {
 }
 
 ipbase_com_lookup() {
-  result=$(timeout 3 curl -4 -s "https://api.ipbase.com/v2/info?ip=$external_ip" | jq -r ".data.location.country.alpha2" 2> /dev/null)
+  result=$(timeout 3 curl -4 -s "https://api.ipbase.com/v2/info?ip=$external_ip" | jq -r ".data.location.country.alpha2" 2>/dev/null)
   if [ $? -eq 124 ]; then
     echo ""
   elif [ "$result" == "null" ]; then
@@ -1013,7 +1023,7 @@ ipbase_com_lookup() {
 }
 
 ipbase_com_lookup_v6() {
-  result=$(timeout 3 curl -4 -s "https://api.ipbase.com/v2/info?ip=$external_ipv6" | jq -r ".data.location.country.alpha2" 2> /dev/null)
+  result=$(timeout 3 curl -4 -s "https://api.ipbase.com/v2/info?ip=$external_ipv6" | jq -r ".data.location.country.alpha2" 2>/dev/null)
   if [ $? -eq 124 ]; then
     echo ""
   elif [ "$result" == "null" ]; then
@@ -1026,7 +1036,7 @@ ipbase_com_lookup_v6() {
 }
 
 ip_sb_lookup() {
-  result=$(timeout 3 curl -4 -s "https://api.ip.sb/geoip/$external_ip" -A "$USER_AGENT" | jq -r ".country_code" 2> /dev/null)
+  result=$(timeout 3 curl -4 -s "https://api.ip.sb/geoip/$external_ip" -A "$USER_AGENT" | jq -r ".country_code" 2>/dev/null)
   if [ $? -eq 124 ]; then
     echo ""
   elif [ "$result" == "null" ]; then
@@ -1039,7 +1049,7 @@ ip_sb_lookup() {
 }
 
 ip_sb_lookup_v6() {
-  result=$(timeout 3 curl -4 -s "https://api.ip.sb/geoip/$external_ipv6" -A "$USER_AGENT" | jq -r ".country_code" 2> /dev/null)
+  result=$(timeout 3 curl -4 -s "https://api.ip.sb/geoip/$external_ipv6" -A "$USER_AGENT" | jq -r ".country_code" 2>/dev/null)
   if [ $? -eq 124 ]; then
     echo ""
   elif [ "$result" == "null" ]; then
@@ -1052,7 +1062,7 @@ ip_sb_lookup_v6() {
 }
 
 maxmind_com_lookup() {
-  result=$(timeout 3 curl -4 -s "https://geoip.maxmind.com/geoip/v2.1/city/me" -H "Referer: https://www.maxmind.com" | jq -r ".country.iso_code" 2> /dev/null)
+  result=$(timeout 3 curl -4 -s "https://geoip.maxmind.com/geoip/v2.1/city/me" -H "Referer: https://www.maxmind.com" | jq -r ".country.iso_code" 2>/dev/null)
   if [ $? -eq 124 ]; then
     echo ""
   elif [ "$result" == "null" ]; then
@@ -1065,7 +1075,7 @@ maxmind_com_lookup() {
 }
 
 maxmind_com_lookup_v6() {
-  result=$(timeout 3 curl -6 -s "https://geoip.maxmind.com/geoip/v2.1/city/me" -H "Referer: https://www.maxmind.com" | jq -r ".country.iso_code" 2> /dev/null)
+  result=$(timeout 3 curl -6 -s "https://geoip.maxmind.com/geoip/v2.1/city/me" -H "Referer: https://www.maxmind.com" | jq -r ".country.iso_code" 2>/dev/null)
   if [ $? -eq 124 ]; then
     echo ""
   elif [ "$result" == "null" ]; then
