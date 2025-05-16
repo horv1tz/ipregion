@@ -2,7 +2,7 @@
 
 This shell script is designed to check how your public IP address is identified by various IP databases. The script queries multiple sources to retrieve the country code associated with your IP, providing a comprehensive overview of how different services interpret your location.
   
-![image](https://github.com/vernette/ipregion/blob/master/test_example.jpg?raw=true)
+![image](https://i.imgur.com/tSIg2vT.png)
 
 ## Features
 
